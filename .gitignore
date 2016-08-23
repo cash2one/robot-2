@@ -1,0 +1,13 @@
+.*
+*.log
+?
+__pycache__
+build
+dist
+var
+debug*
+rldfs
+o?
+o??
+o???
+top-1m*
