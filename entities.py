@@ -73,3 +73,7 @@ if __name__ == "__main__":
     sql_debug(True)
     init(*sys.argv[1:])
     main()
+    """
+    select count(name) from host where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);
+    update host set crawler_started = null where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);
+    """

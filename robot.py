@@ -28,8 +28,8 @@ except ImportError:
 
 try:
     import lxml
-    HTML_PARSER = "lxml"
     HTML_PARSER = "html5lib"
+    HTML_PARSER = "lxml"
 except ImportError:
     HTML_PARSER = "html.parser"
 
@@ -173,7 +173,14 @@ def fetch(url: str, get: requests.Session.get) -> (dict, set, set, set) or None:
     if len(resp.content) > TOO_LONG:
         return
 
-    soup = bs4.BeautifulSoup(resp.content if resp.encoding == 'ISO-8859-1' else resp.text, HTML_PARSER)
+    markup = resp.content
+    if resp.encoding != 'ISO-8859-1':
+        try:
+            markup = markup.decode(encoding=resp.encoding)
+        except (LookupError, UnicodeDecodeError):  # unknown encoding or decode error
+            pass
+
+    soup = bs4.BeautifulSoup(markup, HTML_PARSER)
 
     abs_url = functools.partial(urllib.parse.urljoin, resp.url)
 
@@ -236,7 +243,7 @@ def demo(host, count, proxy):
     """
 
     # limit amount of processor time: 60s
-    resource.setrlimit(resource.RLIMIT_CPU, (60, -1))
+    #resource.setrlimit(resource.RLIMIT_CPU, (60, -1))
     out = run(host=host, n_pages=count, proxy=proxy)
     import pprint, io, sys
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, errors="ignore")
@@ -254,7 +261,7 @@ def run(**config):
 
     try:
         signal.signal(signal.SIGALRM, raise_timeout)
-        signal.alarm(n_pages * 15)  # 15s per-page average
+        signal.alarm(n_pages * 60)  # 30s per-page average
     except AttributeError:
         pass
 
