@@ -36,6 +36,15 @@ class Host(db.Entity):
     language = Optional(str, 10, nullable=True)
 
 
+class Alexa(db.Entity):
+    """用于控制爬虫的任务状态
+    """
+
+    name = Required(str, 100, index=True)
+    rank = Required(int)
+    date = Required(datetime.date)
+
+
 class Tmp(db.Entity):
     key = PrimaryKey(str)
 
@@ -48,21 +57,23 @@ def init(db_file=None, hosts_file=None):
     if hosts_file is None:
         return
 
-    with db_session, open(hosts_file) as f:
-        done = set()
+    with open(hosts_file) as f:
+        today = datetime.date.today()
+        with db_session:
+            done = set(select(i.name for i in Host))
 
-        for i in f:
-
-            name = i.strip()
+        def add_host(name):
             if name not in done:
                 Host(name=name)
-            done.add(name)
-
-            if not name.startswith("www."):
-                name = "www." + name
-                if name not in done:
-                    Host(name=name)
                 done.add(name)
+
+        for rank, s in enumerate(f, 1):
+            name = s.strip()
+            with db_session:
+                Alexa(name=name, date=today, rank=rank)
+                add_host(name)
+                if not name.startswith("www."):
+                    add_host("www." + name)
 
 
 def main():
