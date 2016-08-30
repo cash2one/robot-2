@@ -70,7 +70,7 @@ def init(db_file=None, hosts_file=None):
         for rank, s in enumerate(f, 1):
             name = s.strip()
             with db_session:
-                Alexa(name=name, date=today, rank=rank)
+                #Alexa(name=name, date=today, rank=rank)
                 add_host(name)
                 if not name.startswith("www."):
                     add_host("www." + name)
