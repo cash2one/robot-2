@@ -87,4 +87,8 @@ if __name__ == "__main__":
     """
     select count(name) from host where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);
     update host set crawler_started = null where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);
+
+    select substr(name, 1, 1) as s, count(id) as n from host where name not like 'www.%' group by s order by s;
+    select substr(name, 5, 1) as s, count(id) as n from host where name like 'www.%' group by s order by s;
+
     """

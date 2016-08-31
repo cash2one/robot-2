@@ -355,7 +355,15 @@ def main():
 
     init(".db")
 
-    while True:
+    flag_loop = True
+
+    def _sig_term(signum, frame):
+        nonlocal flag_loop
+        flag_loop = False
+
+    signal.signal(signal.SIGTERM, _sig_term)
+
+    while flag_loop:
         with db_session(immediate=True):
             o = select(i for i in Host if i.crawler_started is None).limit(1)
             if not o:
@@ -389,7 +397,12 @@ def main():
                 host.language, _ = langid.classify(homepage)
 
         if homepage:
-            with open("homepage.d/{}".format(host_name), "w") as f:
+            # fn has prefix like hash
+            if host_name.startswith("www."):
+                fn = "homepage.d/www/{}/{}".format(host_name[4], host_name)
+            else:
+                fn = "homepage.d/{}/{}".format(host_name[0], host_name)
+            with open(fn, "w") as f:
                 f.write(homepage)
 
 
