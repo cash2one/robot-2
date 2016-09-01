@@ -49,11 +49,15 @@ class Tmp(db.Entity):
     key = PrimaryKey(str)
 
 
-def init(db_file=None, hosts_file=None):
+def init(db_file=None, debug=False):
+    sql_debug(debug)
     db_file = db_file or ":memory:"
     db.bind("sqlite", db_file, create_db=True)
     db.generate_mapping(create_tables=True)
     sql_debug(False)
+
+
+def main(hosts_file=None):
     if hosts_file is None:
         return
 
@@ -76,14 +80,10 @@ def init(db_file=None, hosts_file=None):
                     add_host("www." + name)
 
 
-def main():
-    return
-
-
 if __name__ == "__main__":
-    sql_debug(True)
-    init(*sys.argv[1:])
-    main()
+    init(*sys.argv[1:2], debug=True)
+    main(*sys.argv[2:])
+
     """
     select count(name) from host where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);
     update host set crawler_started = null where crawler_started < datetime('now', 'localtime', '-5 minutes') and (crawler_done is null or crawler_done < crawler_started);

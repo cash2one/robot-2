@@ -348,12 +348,9 @@ def raise_timeout(*_):
     raise TimeoutError(os.times())
 
 
-def main():
-    from entities import db_session, select
-    from entities import Host
-    from entities import init
-
-    init(".db")
+def main(spec_task=None):
+    if spec_task:
+        return do_it(spec_task)
 
     flag_loop = True
 
@@ -364,48 +361,61 @@ def main():
     signal.signal(signal.SIGTERM, _sig_term)
 
     while flag_loop:
-        with db_session(immediate=True):
+        if do_it() == "break":
+            break
+
+
+from entities import db_session, select
+from entities import Host
+
+def do_it(host_name=None):
+    with db_session(immediate=True):  # select with session lock
+        if host_name is None:
             o = select(i for i in Host if i.crawler_started is None).limit(1)
-            if not o:
-                break
+        else:
+            o = select(i for i in Host if i.name == host_name).limit(1)
 
-            task, = o
-            print(task.name, flush=True)
-            task.crawler_started = datetime.datetime.now()
-            host_id = task.id
-            host_name = task.name
+        if not o:
+            return "break"
 
-        info = run(host=host_name, n_pages=1)
-        #print(info)
-        homepage = ""  # store as file
+        task, = o
+        print(task.name, flush=True)
+        task.crawler_started = datetime.datetime.now()
+        host_id = task.id
+        host_name = task.name
 
-        with db_session:
-            host = Host[host_id]
-            host.crawler_done = datetime.datetime.now()
-            host.ip = info.get("ip")
-            host.redirect = info.get("redirect")
-            host.err = info.get("err")
-            pages = info.get("pages")
-            if pages:
-                page1 = pages[0]
-                host.url = page1["url"]
-                host.title = page1.get("title")
-                host.keywords = page1.get("keywords")
-                host.description = page1.get("description")
-                host.encoding = page1.get("encoding")
-                homepage = page1.get("text", "")
-                host.language, _ = langid.classify(homepage)
+    info = run(host=host_name, n_pages=1)
+    #print(info)
+    homepage = ""  # store as file
 
-        if homepage:
-            # fn has prefix like hash
-            if host_name.startswith("www."):
-                fn = "homepage.d/www/{}/{}".format(host_name[4], host_name)
-            else:
-                fn = "homepage.d/{}/{}".format(host_name[0], host_name)
-            with open(fn, "w") as f:
-                f.write(homepage)
+    with db_session:
+        host = Host[host_id]
+        host.crawler_done = datetime.datetime.now()
+        host.ip = info.get("ip")
+        host.redirect = info.get("redirect")
+        host.err = info.get("err")
+        pages = info.get("pages")
+        if pages:
+            page1 = pages[0]
+            host.url = page1["url"]
+            host.title = page1.get("title")
+            host.keywords = page1.get("keywords")
+            host.description = page1.get("description")
+            host.encoding = page1.get("encoding")
+            homepage = page1.get("text", "")
+            host.language, _ = langid.classify(homepage)
+
+    if homepage:
+        # fn has prefix like hash
+        if host_name.startswith("www."):
+            fn = "homepage.d/www/{}/{}".format(host_name[4], host_name)
+        else:
+            fn = "homepage.d/{}/{}".format(host_name[0], host_name)
+        with open(fn, "w") as f:
+            f.write(homepage)
 
 
 if __name__ == "__main__":
-    #demo()
-    main()
+    from entities import init
+    init(".db")
+    main(*sys.argv[1:])
