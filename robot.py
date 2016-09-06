@@ -362,6 +362,7 @@ def main(spec_task=None):
 
     while flag_loop:
         if do_it() == "break":
+            time.sleep(3)
             break
 
 
