@@ -7,6 +7,7 @@ robot.py
 
 import datetime
 import json
+import fcntl
 import functools
 import logging
 import os
@@ -36,11 +37,23 @@ except ImportError:
 import bs4
 import click
 import langid
+import leveldb
 import requests
 
 
 # not now IMAGES_COUNT = int(os.environ.get("IMAGES_COUNT", 50))
 TOO_LONG = 1 * 1024 * 1024
+
+
+class Lock():
+    def __init__(self, fn=".lock"):
+        self.fd = open(fn, "w")
+
+    def __enter__(self):
+        fcntl.lockf(self.fd, fcntl.LOCK_EX)
+
+    def __exit__(self, type, value, traceback):
+        fcntl.lockf(self.fd, fcntl.LOCK_UN)
 
 
 is_valid_host = re.compile(
@@ -369,6 +382,8 @@ def main(spec_task=None):
 from entities import db_session, select
 from entities import Host
 
+lock = Lock()
+
 def do_it(host_name=None):
     with db_session(immediate=True):  # select with session lock
         if host_name is None:
@@ -407,6 +422,11 @@ def do_it(host_name=None):
             host.language, _ = langid.classify(homepage)
 
     if homepage:
+        with lock:
+            db = leveldb.LevelDB('./homepages')
+            db.Put(host_name.encode(), homepage.encode())
+            del db
+        '''
         # fn has prefix like hash
         if host_name.startswith("www."):
             fn = "homepage.d/www/{}/{}".format(host_name[4], host_name)
@@ -414,6 +434,7 @@ def do_it(host_name=None):
             fn = "homepage.d/{}/{}".format(host_name[0], host_name)
         with open(fn, "w") as f:
             f.write(homepage)
+        '''
 
 
 if __name__ == "__main__":
