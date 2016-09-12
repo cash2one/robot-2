@@ -2,6 +2,7 @@
 
 import fcntl
 import os
+import gc
 import sys
 import time
 
@@ -28,6 +29,7 @@ def main(key=None):
             print(db.GetStats())
         else:
             print(db.Get(key.encode()).decode())
+        del db; gc.collect()
 
 
 if __name__ == "__main__":

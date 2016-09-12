@@ -11,6 +11,7 @@ import fcntl
 import functools
 import logging
 import os
+import gc
 import random
 import re
 import signal
@@ -382,7 +383,14 @@ def main(spec_task=None):
 from entities import db_session, select
 from entities import Host
 
-lock = Lock()
+_lock = Lock()
+
+def save_into_leveldb(name, content):
+    with _lock:
+        db = leveldb.LevelDB('./homepages')
+        db.Put(name.encode(), content.encode())
+        del db; gc.collect()  # a trick for disconnect leveldb
+
 
 def do_it(host_name=None):
     with db_session(immediate=True):  # select with session lock
@@ -422,10 +430,7 @@ def do_it(host_name=None):
             host.language, _ = langid.classify(homepage)
 
     if homepage:
-        with lock:
-            db = leveldb.LevelDB('./homepages')
-            db.Put(host_name.encode(), homepage.encode())
-            del db
+        save_into_leveldb(host_name, homepage)
         '''
         # fn has prefix like hash
         if host_name.startswith("www."):
