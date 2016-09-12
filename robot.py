@@ -275,7 +275,7 @@ def run(**config):
 
     try:
         signal.signal(signal.SIGALRM, raise_timeout)
-        signal.alarm(n_pages * 60)  # 30s per-page average
+        signal.alarm(120)
     except AttributeError:
         pass
 
