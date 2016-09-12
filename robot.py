@@ -38,23 +38,11 @@ except ImportError:
 import bs4
 import click
 import langid
-import leveldb
 import requests
 
 
 # not now IMAGES_COUNT = int(os.environ.get("IMAGES_COUNT", 50))
 TOO_LONG = 1 * 1024 * 1024
-
-
-class Lock():
-    def __init__(self, fn=".lock"):
-        self.fd = open(fn, "w")
-
-    def __enter__(self):
-        fcntl.lockf(self.fd, fcntl.LOCK_EX)
-
-    def __exit__(self, type, value, traceback):
-        fcntl.lockf(self.fd, fcntl.LOCK_UN)
 
 
 is_valid_host = re.compile(
@@ -383,14 +371,7 @@ def main(spec_task=None):
 from entities import db_session, select
 from entities import Host
 
-_lock = Lock()
-
-def save_into_leveldb(name, content):
-    with _lock:
-        db = leveldb.LevelDB('./homepages')
-        db.Put(name.encode(), content.encode())
-        del db; gc.collect()  # a trick for disconnect leveldb
-
+upload_session = requests.Session()
 
 def do_it(host_name=None):
     with db_session(immediate=True):  # select with session lock
@@ -430,7 +411,8 @@ def do_it(host_name=None):
             host.language, _ = langid.classify(homepage)
 
     if homepage:
-        save_into_leveldb(host_name, homepage)
+        upload_session.post("http://localhost:1030/{}".format(host_name),
+                            data=homepage.encode())
         '''
         # fn has prefix like hash
         if host_name.startswith("www."):
