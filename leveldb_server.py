@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 
+import itertools
+import json
 import logging
 import os
 import signal
@@ -12,24 +14,72 @@ import tornado.web
 import leveldb
 
 
-db = leveldb.LevelDB('./homepages')
 
 
-class MainHandler(tornado.web.RequestHandler):
+class BaseHandler(tornado.web.RequestHandler):
+    db = leveldb.LevelDB('./homepages')
+
+    def set_default_headers(self):
+        self.set_header("Content-Type", "text/plain; charset=UTF-8")
+
+    def write_json(self, obj):
+        self.set_header("Content-Type", "application/json; charset=UTF-8")
+        self.finish(json.dumps(obj, default=str, ensure_ascii=False, indent=4,
+                               sort_keys=True, separators=(",", ": ")))
+
+
+class MainHandler(BaseHandler):
+    def get(self):
+        self.write(self.db.GetStats())
+
+
+class DataHandler(BaseHandler):
     def get(self, name):
         try:
-            self.write(bytes(db.Get(name.encode())))
+            self.write(bytes(self.db.Get(name.encode())))
         except KeyError:
             raise tornado.web.HTTPError(404)
 
     def post(self, name):
         content = self.request.body
-        #print(name, len(content))
-        db.Put(name.encode(), content)
+        self.db.Put(name.encode(), content)
+
+    def delete(self, name):
+        self.db.Delete(name.encode())
+
+
+class KeysHandler(BaseHandler):
+    def get(self):
+        def argv(k):
+            v = self.get_argument(k, None)
+            return v and v.encode()
+        n = int(self.get_argument("n", 100))
+        it = self.db.RangeIter(argv("from"), argv("to"), include_value=False)
+        self.write_json(list(itertools.islice(map(bytearray.decode, it), n)))
+
+
+class IterHandler(BaseHandler):
+    _iter = None
+
+    def get(self):
+        try:
+            k, v = map(bytearray.decode, next(self._iter))
+        except (StopIteration, TypeError):
+            raise tornado.web.HTTPError(404)
+        self.write_json(dict(k=k, v=v))
+
+    def post(self):
+        def argv(k):
+            v = self.get_argument(k, None)
+            return v and v.encode()
+        self.__class__._iter = self.db.RangeIter(argv("from"), argv("to"))
 
 
 handlers = [
-    (r"/(.+)", MainHandler),
+    (r"/data/(.+)", DataHandler),
+    (r"/keys", KeysHandler),
+    (r"/iter", IterHandler),
+    (r"/", MainHandler),
 ]
 
 

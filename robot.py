@@ -411,7 +411,7 @@ def do_it(host_name=None):
             host.language, _ = langid.classify(homepage)
 
     if homepage:
-        upload_session.post("http://localhost:1030/{}".format(host_name),
+        upload_session.post("http://localhost:1030/data/{}".format(host_name),
                             data=homepage.encode())
         '''
         # fn has prefix like hash
