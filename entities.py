@@ -66,6 +66,16 @@ def main(hosts_file=None):
         with db_session:
             done = set(select(i.name for i in Host))
 
+        news = set(map(str.strip, f)) - done
+        news |= set("www." + i for i in news)
+        news -= done
+        print(len(news))
+
+        with db_session:
+            for name in news:
+                Host(name=name)
+
+        '''
         def add_host(name):
             if name not in done:
                 Host(name=name)
@@ -78,6 +88,7 @@ def main(hosts_file=None):
                 add_host(name)
                 if not name.startswith("www."):
                     add_host("www." + name)
+        '''
 
 
 if __name__ == "__main__":
