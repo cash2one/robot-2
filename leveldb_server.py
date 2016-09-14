@@ -4,6 +4,7 @@ import itertools
 import json
 import logging
 import os
+import resource
 import signal
 import time
 
@@ -12,8 +13,6 @@ import tornado.options
 import tornado.web
 
 import leveldb
-
-
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -84,6 +83,9 @@ handlers = [
 
 
 def main():
+    _, n = resource.getrlimit(resource.RLIMIT_NOFILE)
+    resource.setrlimit(resource.RLIMIT_NOFILE, (n, n))
+
     tornado.options.parse_command_line()
 
     tornado.web.Application(
