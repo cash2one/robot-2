@@ -4,6 +4,7 @@ import itertools
 import json
 import logging
 import os
+import gc
 import resource
 import signal
 import time
@@ -13,6 +14,8 @@ import tornado.options
 import tornado.web
 
 import leveldb
+
+gc.disable()
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -29,6 +32,7 @@ class BaseHandler(tornado.web.RequestHandler):
 
 class MainHandler(BaseHandler):
     def get(self):
+        gc.collect()
         self.write(self.db.GetStats())
 
 
@@ -65,7 +69,7 @@ class IterHandler(BaseHandler):
             k, v = map(bytearray.decode, next(self._iter))
         except (StopIteration, TypeError):
             raise tornado.web.HTTPError(404)
-        self.write_json(dict(k=k, v=v))
+        self.write_json([k, v])
 
     def post(self):
         def argv(k):
