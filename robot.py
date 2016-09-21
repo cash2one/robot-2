@@ -393,6 +393,12 @@ def do_it(host_name=None):
     #print(info)
     homepage = ""  # store as file
 
+    other_hosts_found = info.get("other_hosts_found")
+    if other_hosts_found:
+        with open("other_hosts_found", "a") as f:
+            for i in other_hosts_found:
+                print(i, file=f)
+
     with db_session:
         host = Host[host_id]
         host.crawler_done = datetime.datetime.now()
