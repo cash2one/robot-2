@@ -66,10 +66,10 @@ class IterHandler(BaseHandler):
 
     def get(self):
         try:
-            k, v = map(bytearray.decode, next(self._iter))
-        except (StopIteration, TypeError):
+            k, v = next(self._iter)
+        except StopIteration:
             raise tornado.web.HTTPError(404)
-        self.write_json([k, v])
+        self.write(b'' + k + b'\n' + v)
 
     def post(self):
         def argv(k):
