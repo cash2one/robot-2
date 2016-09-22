@@ -64,6 +64,10 @@ class KeysHandler(BaseHandler):
 class IterHandler(BaseHandler):
     _iter = None
 
+    @classmethod
+    def flush_iter(cls, *args):
+        cls._iter = cls.db.RangeIter(*args)
+
     def get(self):
         try:
             k, v = next(self._iter)
@@ -75,7 +79,7 @@ class IterHandler(BaseHandler):
         def argv(k):
             v = self.get_argument(k, None)
             return v and v.encode()
-        self.__class__._iter = self.db.RangeIter(argv("from"), argv("to"))
+        self.flush_iter(argv("from"), argv("to"))
 
 
 handlers = [
@@ -89,6 +93,8 @@ handlers = [
 def main():
     _, n = resource.getrlimit(resource.RLIMIT_NOFILE)
     resource.setrlimit(resource.RLIMIT_NOFILE, (n, n))
+
+    IterHandler.flush_iter()
 
     tornado.options.parse_command_line()
 
