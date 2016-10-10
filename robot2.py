@@ -34,7 +34,6 @@ except ImportError:
 
 import bs4
 import click
-import langid
 import requests
 
 
