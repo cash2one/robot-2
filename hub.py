@@ -73,6 +73,9 @@ class HostInfoHandler(BaseHandler):
         info = json.loads(content.decode())
         for host in info.get("other_hosts_found", []):
             self.tasks.add(host)
+        redirect = info.get("redirect")
+        if redirect:
+            self.tasks.add(redirect)
         self.db.Put(name.encode(), content)
 
     def delete(self, name):
@@ -118,3 +121,7 @@ def main():
 
 if __name__ == "__main__":
     main()
+    """
+    curl -d "renew" 'localhost:1033/_cmd'
+    curl -d "rebuild" 'localhost:1033/_cmd'
+    """

@@ -146,8 +146,10 @@ class Tasks():
         """
         when you were confused, do it
         """
-
         self.filter.clear()
+        threading.Thread(target=self._rebuild_filter).start()
+
+    def _rebuild_filter(self):
         with open(self.name) as f:
             for line in f:
                 self.filter.set(line.rstrip())
@@ -162,7 +164,7 @@ class Tasks():
 def test():
     t = Tasks("hosts")
     t.rebuild_filter()
-    t.finish()
+    #t.finish()
 
 
 if __name__ == "__main__":
