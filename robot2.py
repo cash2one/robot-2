@@ -375,6 +375,7 @@ def do_it(host_name=None):
             return "break"
         host_name = resp.text
 
+    print(host_name, flush=True)
     info = run(host=host_name, n_pages=10)
     data = json.dumps(info, default=str, ensure_ascii=False, indent=4,
                       sort_keys=True, separators=(",", ": ")).encode()
