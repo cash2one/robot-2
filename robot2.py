@@ -36,6 +36,9 @@ import bs4
 import click
 import requests
 
+# https://urllib3.readthedocs.io/en/latest/advanced-usage.html#ssl-warnings
+requests.packages.urllib3.disable_warnings()
+
 
 # not now IMAGES_COUNT = int(os.environ.get("IMAGES_COUNT", 50))
 TOO_LONG = 1 * 1024 * 1024

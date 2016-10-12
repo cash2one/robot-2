@@ -36,8 +36,7 @@ class Cli(master_worker.MasterWorker):
     RLIMIT_AS = 500 * 1024 * 1024
 
     def init(self):
-        self.session = requests.Session()
-        self.shared_session = SessionWithLock()
+        self.session = SessionWithLock()
 
     def get_command(self):
         url_task_ask = "http://gpu.tyio.net:1033/host"
@@ -67,7 +66,7 @@ class Cli(master_worker.MasterWorker):
         out = robot2.run(host=host, n_pages=10)
         url = "http://gpu.tyio.net:1033/host-info/{}".format(host)
         data = json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()
-        self.shared_session.post(url, data=data)
+        self.session.post(url, data=data)
 
 
 master_worker = Cli()
@@ -80,7 +79,7 @@ def update_num_of_workers(*_):
 
 
 def reload_code(*_):
-    imp.reload(cli)
+    imp.reload(robot2)
 
 
 def main():
