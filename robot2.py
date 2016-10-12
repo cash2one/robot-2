@@ -240,8 +240,6 @@ def demo(host, count, proxy):
     """开始一个爬虫任务, 测试
     """
 
-    # limit amount of processor time: 60s
-    #resource.setrlimit(resource.RLIMIT_CPU, (60, -1))
     out = run(host=host, n_pages=count, proxy=proxy)
     import pprint, io, sys
     sys.stdout = io.TextIOWrapper(sys.stdout.buffer, errors="ignore")

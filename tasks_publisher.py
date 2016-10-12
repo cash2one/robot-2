@@ -141,6 +141,7 @@ class Tasks():
             if self._count_of_new_tasks > 100 * 1000:
                 self.filter.save()
                 self._count_of_new_tasks = 0
+            return +1  # :)
 
     def rebuild_filter(self):
         """
