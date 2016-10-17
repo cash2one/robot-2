@@ -253,6 +253,7 @@ def run(**config):
     host = config["host"]
     n_pages = config.get("n_pages", 1)
     proxy = config.get("proxy")
+    #proxy = "10.10.60.51:8118"
     proxies = {
         "http": proxy,
         "https": proxy,

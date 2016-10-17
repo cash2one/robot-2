@@ -13,7 +13,7 @@ import sys
 import time
 
 import requests
-import socks
+#import socks
 
 import robot2
 import master_worker
