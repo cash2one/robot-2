@@ -17,9 +17,9 @@ import socks
 
 import robot2
 import master_worker
+import random
 
 
-"""
 class SessionWithLock(requests.Session):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -28,7 +28,6 @@ class SessionWithLock(requests.Session):
     def request(self, *args, **kwargs):
         with self._lock:
             return super().request(*args, **kwargs)
-"""
 
 
 class Cli(master_worker.MasterWorker):
@@ -36,7 +35,7 @@ class Cli(master_worker.MasterWorker):
     RLIMIT_AS = 500 * 1024 * 1024
 
     def init(self):
-        socks.set_default_proxy(socks.SOCKS4, "10.10.60.1")
+        #socks.set_default_proxy(socks.SOCKS4, "10.10.60.1", 10800)
         self.session = requests.Session()
 
     def get_command(self):
@@ -64,7 +63,7 @@ class Cli(master_worker.MasterWorker):
                 time.sleep(0.1)
 
     def work(self, host):
-        socket.socket = socks.socksocket  # monkey patch
+        #socket.socket = socks.socksocket  # monkey patch
         out = robot2.run(host=host, n_pages=10)
         data = json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()
         return data
@@ -72,6 +71,9 @@ class Cli(master_worker.MasterWorker):
     def process_result(self, host, data):
         url = "http://gpu.tyio.net:1033/host-info/{}".format(host)
         self.session.post(url, data=data)
+
+    def cmd__reload(self):
+        imp.reload(robot2)
 
 
 master_worker = Cli.instance()
@@ -83,16 +85,11 @@ def update_num_of_workers(*_):
         master_worker.NUM_OF_WORKERS = n
 
 
-def reload_code(*_):
-    imp.reload(robot2)
-
 
 def main():
     with open(".pid", "w") as f:
         f.write(str(os.getpid()))
 
-    signal.signal(signal.SIGUSR1, update_num_of_workers)
-    signal.signal(signal.SIGUSR2, reload_code)
     update_num_of_workers()
     master_worker.run()
 

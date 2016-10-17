@@ -10,6 +10,9 @@ import pickle
 import resource
 import selectors
 import signal
+import struct
+import socket
+import multiprocessing
 import sys
 import time
 import threading
@@ -40,8 +43,12 @@ class MasterWorker(object):
         if self._lock:
             raise ValueError(self)
         self._children = set()
-        self._selector = selectors.SelectSelector()
+        self._reader, self._writer = socket.socketpair()
+        self._reader.settimeout(0.01)
+        self._writer_lock = multiprocessing.Lock()
+        self._struct_msg_header = struct.Struct("!I")
         self._foo = _fifo(".pipe." + type(self).__name__)
+        self._loop_flag = False
         signal.signal(signal.SIGCHLD, self._sig_chld)
         signal.signal(signal.SIGTERM, self._sig_term)
 
@@ -70,13 +77,7 @@ class MasterWorker(object):
                 break
 
     def _sig_term(self, signum, frame):
-        self.clean()
-        sys.exit()
-
-    def _wait_children(self):
-        while self._children:
-            #print(self._children)
-            time.sleep(0.1)  # see _sig_chld
+        self._loop_flag = False
 
     def log(self, x):
         print(datetime.datetime.now(), x, file=sys.stderr, flush=True)
@@ -85,17 +86,21 @@ class MasterWorker(object):
         self.init()
         gc.disable()
 
-        loop_flag = True
-        while loop_flag:
+        self._loop_flag = True
+        while self._loop_flag:
             # loop
             if len(self._children) < self.NUM_OF_WORKERS:
-                command = self.get_command()
+                try:
+                    command = self.get_command()
+                except Exception as e:
+                    self.log(e)
+                    command = None
                 if command is None:
-                    loop_flag = False
+                    self._loop_flag = False
                 else:
                     self._fork(command)
 
-            self._select_and_process()
+            self._recv_and_proc()
             self._have_a_rest()
             # loop
 
@@ -117,32 +122,48 @@ class MasterWorker(object):
         self.NUM_OF_WORKERS = int(n)
 
     def clean(self):
-        while self._selector.get_map():
-            self._select_and_process()
-        self._wait_children()
-        self._selector.close()
+        while self._children:
+            self._recv_and_proc()
+        self._reader.close()
+        self._writer.close()
         self.clear_instance()
 
-    def _select_and_process(self):
-        events = self._selector.select(0.1)
-        for key, _ in events:
-            f = key.fileobj
-            self._selector.unregister(f)
-            command, result = pickle.loads(f.read())
+    def _recv(self):
+        header = b''
+        while True:
+            rest = self._struct_msg_header.size - len(header)
+            if not rest:
+                break
+            header += self._reader.recv(rest)
+
+        size, = self._struct_msg_header.unpack(header)
+
+        body = b''
+        while True:
+            rest = size - len(body)
+            if not rest:
+                break
+            body += self._reader.recv(rest)
+
+        return body
+
+    def _recv_and_proc(self):
+        while True:
             try:
-                self.process_result(command, result)
-            except Exception as e:
-                self.log(e)
-            f.close()
+                msg = self._recv()
+                command, result = pickle.loads(msg)
+                try:
+                    self.process_result(command, result)
+                except Exception as e:
+                    self.log(e)
+            except socket.timeout:
+                break
 
     def _fork(self, command):
-        r, w = os.pipe()
-        #print(r, w)
         pid = os.fork()
         if pid == 0:  # child
             self._foo.close()
-            os.close(r)
-            sender = os.fdopen(w, "wb")
+            self._reader.close()
             signal.signal(signal.SIGCHLD, signal.SIG_DFL)
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
             resource.setrlimit(resource.RLIMIT_CPU, (self.RLIMIT_CPU, -1))
@@ -151,13 +172,12 @@ class MasterWorker(object):
                 result = self.work(command)
             except Exception as e:
                 result = type(e)
-            sender.write(pickle.dumps((command, result)))
-            sender.close()
+            msg = pickle.dumps((command, result))
+            with self._writer_lock:
+                self._writer.sendall(self._struct_msg_header.pack(len(msg)) + msg)
+            self._writer.close()
             sys.exit()
         else:
-            os.close(w)
-            f = os.fdopen(r, "rb")
-            self._selector.register(f, selectors.EVENT_READ)
             self._children.add(pid)
             gc.collect()
 
@@ -204,7 +224,8 @@ def main():
             return time.time()
         def work(self, command) -> object:
             print(command)
-            time.sleep(random.randint(1, 5))
+            time.sleep(random.random() * 10)
+            return command, os.getpid()
         def cmd__test(self):
             print(self)
 
