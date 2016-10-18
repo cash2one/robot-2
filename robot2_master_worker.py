@@ -39,7 +39,7 @@ class Cli(master_worker.MasterWorker):
         self.session = requests.Session()
 
     def get_command(self):
-        url_task_ask = "http://gpu.tyio.net:1033/host"
+        url_task_ask = "http://u146.tyio.net:1033/host"
         while True:
             try:
                 task = self.session.get(url_task_ask)
@@ -69,7 +69,7 @@ class Cli(master_worker.MasterWorker):
         return data
 
     def process_result(self, host, data):
-        url = "http://gpu.tyio.net:1033/host-info/{}".format(host)
+        url = "http://u146.tyio.net:1033/host-info/{}".format(host)
         self.session.post(url, data=data)
 
     def cmd__reload(self):
