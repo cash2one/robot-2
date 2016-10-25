@@ -13,7 +13,6 @@ import sys
 import time
 
 import requests
-#import socks
 
 import robot2
 import master_worker
@@ -32,10 +31,10 @@ class SessionWithLock(requests.Session):
 
 class Cli(master_worker.MasterWorker):
     NUM_OF_WORKERS = 2
+    RLIMIT_CPU = 240 - 3
     RLIMIT_AS = 500 * 1024 * 1024
 
     def init(self):
-        #socks.set_default_proxy(socks.SOCKS4, "10.10.60.1", 10800)
         self.session = requests.Session()
 
     def get_command(self):
@@ -63,7 +62,6 @@ class Cli(master_worker.MasterWorker):
                 time.sleep(0.1)
 
     def work(self, host):
-        #socket.socket = socks.socksocket  # monkey patch
         out = robot2.run(host=host, n_pages=10)
         data = json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()
         return data
@@ -79,18 +77,7 @@ class Cli(master_worker.MasterWorker):
 master_worker = Cli.instance()
 
 
-def update_num_of_workers(*_):
-    with open("NUM_OF_WORKERS") as f:
-        n = int(f.read())
-        master_worker.NUM_OF_WORKERS = n
-
-
-
 def main():
-    with open(".pid", "w") as f:
-        f.write(str(os.getpid()))
-
-    update_num_of_workers()
     master_worker.run()
 
 

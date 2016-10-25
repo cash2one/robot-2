@@ -18,18 +18,6 @@ import time
 import threading
 
 
-def _fifo(name):
-    with contextlib.suppress(FileExistsError):
-        os.mkfifo(name)
-    p = pathlib.Path(name)
-    assert p.is_fifo()
-    def w():
-        with p.open("w"):
-            pass
-    threading.Thread(target=w).start()  # prevent blocking
-    return p.open()
-
-
 class MasterWorker(object):
     """Multiprocessing based master-worker model. Singleton
     """
@@ -47,10 +35,12 @@ class MasterWorker(object):
         self._reader.settimeout(0.01)
         self._writer_lock = multiprocessing.Lock()
         self._struct_msg_header = struct.Struct("!I")
-        self._foo = _fifo(".pipe." + type(self).__name__)
         self._loop_flag = False
         signal.signal(signal.SIGCHLD, self._sig_chld)
+        signal.signal(signal.SIGUSR1, self._sig_usr1)
         signal.signal(signal.SIGTERM, self._sig_term)
+        with open(".{}.pid".format(type(self).__name__), "w") as f:
+            f.write(str(os.getpid()))
 
     @classmethod
     def instance(cls):
@@ -79,6 +69,17 @@ class MasterWorker(object):
     def _sig_term(self, signum, frame):
         self._loop_flag = False
 
+    def _sig_usr1(self, signum, frame):
+        try:
+            with open(".cmd") as f:
+                text = f.read()
+            cmd, *args = text.split()
+            cmd = getattr(self, "cmd__{}".format(cmd), None)
+            if cmd:
+                cmd(*args)
+        except Exception as e:
+            self.log(e)
+
     def log(self, x):
         print(datetime.datetime.now(), x, file=sys.stderr, flush=True)
 
@@ -101,22 +102,9 @@ class MasterWorker(object):
                     self._fork(command)
 
             self._recv_and_proc()
-            self._have_a_rest()
             # loop
 
         self.clean()
-
-    def _have_a_rest(self):
-        text = self._foo.read()
-        if not text:
-            return
-        cmd, *args = text.split()
-        cmd = getattr(self, "cmd__{}".format(cmd), None)
-        if cmd:
-            try:
-                cmd(*args)
-            except Exception as e:
-                self.log(e)
 
     def cmd__tune_num_of_workers(self, n):
         self.NUM_OF_WORKERS = int(n)
@@ -162,9 +150,9 @@ class MasterWorker(object):
     def _fork(self, command):
         pid = os.fork()
         if pid == 0:  # child
-            self._foo.close()
             self._reader.close()
             signal.signal(signal.SIGCHLD, signal.SIG_DFL)
+            signal.signal(signal.SIGUSR1, signal.SIG_DFL)
             signal.signal(signal.SIGTERM, signal.SIG_DFL)
             resource.setrlimit(resource.RLIMIT_CPU, (self.RLIMIT_CPU, -1))
             resource.setrlimit(resource.RLIMIT_AS, (self.RLIMIT_AS, -1))
