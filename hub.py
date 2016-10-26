@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import collections
 import contextlib
+import datetime
 import itertools
 import json
 import logging
@@ -50,7 +52,15 @@ class CommandHandler(BaseHandler):
 
 
 class HostHandler(BaseHandler):
+    workers = collections.defaultdict(dict)
+
     def get(self):
+        info = json.loads(self.request.body.decode())
+        worker = self.workers[info["id"]]
+        worker["active"] = datetime.datetime.now()
+        tasks = info.get("tasks")
+        if tasks:
+            worker["tasks"] = tasks
         host = self.tasks.get()
         if host is None:
             raise tornado.web.HTTPError(404)

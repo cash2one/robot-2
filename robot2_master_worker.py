@@ -11,6 +11,7 @@ import signal
 import socket
 import sys
 import time
+import uuid
 
 import requests
 
@@ -36,23 +37,27 @@ class Cli(master_worker.MasterWorker):
 
     def init(self):
         self.session = requests.Session()
+        self.id = "{}_{:012x}_{}".format(
+            socket.gethostname(),
+            uuid.getnode(),
+            os.getpid(),
+        )
+        self.t = int(time.time())
 
     def get_command(self):
         url_task_ask = "http://u146.tyio.net:1033/host"
+
         while True:
             try:
-                task = self.session.get(url_task_ask)
+                data = {"id": self.id}
+                t = int(time.time())
+                if t > self.t:  # every second
+                    self.t = t
+                    data["tasks"] = self.children
+                data = json.dumps(data, default=str).encode()
+                task = self.session.get(url_task_ask, data=data)
                 if task.status_code == 200:
-
-                    notice = task.headers.get("Notice")
-                    if notice:  # as hub's command
-                        notice = json.loads(notice)
-                        self.log(notice)
-                        if "NUM_OF_WORKERS" in notice:
-                            master_worker.NUM_OF_WORKERS = notice["NUM_OF_WORKERS"]
-
                     return task.text
-
                 else:
                     self.log("have a rest")
                     time.sleep(0.1)
