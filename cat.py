@@ -8,29 +8,32 @@ import time
 
 import leveldb
 
-
-class Lock():
-    def __init__(self, fn=".lock"):
-        self.fd = open(fn, "w")
-
-    def __enter__(self):
-        fcntl.lockf(self.fd, fcntl.LOCK_EX)
-
-    def __exit__(self, type, value, traceback):
-        fcntl.lockf(self.fd, fcntl.LOCK_UN)
+N = 0
+T = int(time.time())
+L = [N]
 
 
-def main(key=None):
-    with Lock():
-        db = leveldb.LevelDB('./homepages')
-        if key is None:
-            for key in db.RangeIter():
-                print(key[0].decode())
-            print(db.GetStats())
-        else:
-            print(db.Get(key.encode()).decode())
-        del db; gc.collect()
+def f(k, v):
+    global N, T
+    t = int(time.time())
+    if t != T:
+        T = t
+        print(N - L[-1], N)
+        L.append(N)
+    N += 1
+
+
+def f(k, v):
+    if v.count("撸") > 3:
+        print(k)
+
+
+def main():
+    db = leveldb.LevelDB('./homepages.2')
+    print(db.GetStats())
+    for k, v in db.RangeIter():
+        f(k.decode(), v.decode())
 
 
 if __name__ == "__main__":
-    main(*sys.argv[1:])
+    main()
