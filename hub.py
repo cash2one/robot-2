@@ -25,6 +25,7 @@ gc.disable()
 class BaseHandler(tornado.web.RequestHandler):
     tasks = tasks_publisher.Tasks("hosts")
     db = leveldb.LevelDB("hosts.ldb")
+    commands = {}
 
     def set_default_headers(self):
         self.set_header("Content-Type", "text/plain; charset=UTF-8")
@@ -53,7 +54,6 @@ class CommandHandler(BaseHandler):
 
 class HostHandler(BaseHandler):
     workers = collections.defaultdict(dict)
-    commands = {}
 
     def get(self):
         resp = {}
@@ -95,6 +95,9 @@ class HostInfoHandler(BaseHandler):
         if redirect:
             self.tasks.add(redirect)
         self.db.Put(name.encode(), content)
+        command = self.commands.pop(self.get_query_argument("id", None), None)
+        if command:
+            self.write(command)
 
     def delete(self, name):
         self.db.Delete(name.encode())
