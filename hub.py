@@ -3,6 +3,7 @@
 import collections
 import contextlib
 import datetime
+import functools
 import itertools
 import json
 import logging
@@ -21,6 +22,7 @@ import tornado.web
 import tasks_publisher
 import public_suffix
 import sqliteset
+import cz88_ip
 
 
 class BaseHandler(tornado.web.RequestHandler):
@@ -98,6 +100,8 @@ class HostInfoHandler(BaseHandler):
         self.redis_cli.hincrby("cnt_done", ts)
         content = self.request.body
         info = json.loads(content.decode())
+        self._notice(name, info)
+
         other_hosts_found = info.get("other_hosts_found")
         if other_hosts_found:
             valued, ignored = [], []
@@ -135,11 +139,57 @@ class HostInfoHandler(BaseHandler):
     def delete(self, name):
         self.db.Delete(name.encode())
 
+    def _notice(self, name, info):
+        log = {
+            "host": name,
+            "bad": False,
+        }
+
+        try:
+            log["location"] = cz88_ip.find(info["ip"])
+        except Exception:
+            "logging.exception(info)"
+
+        TailHandler.pub(log)
+
+
+class TailHandler(BaseHandler):
+    _todos = collections.defaultdict(list)
+    _callbacks = []
+
+    @classmethod
+    def pub(cls, log):
+        discards = []
+        for token, todo in cls._todos.items():
+            todo.append(log)
+            if len(todo) >= 300:
+                discards.append(token)
+        for token in discards:
+            cls._todos.pop(token)
+        for f in cls._callbacks:
+            f()
+        cls._callbacks.clear()
+
+    @tornado.web.asynchronous
+    def get(self, token):
+        todo = self._todos[token]
+        def f():
+            self.set_header("Cache-Control", "no-cache")
+            self.write_json(todo)
+            todo.clear()
+        if todo:
+            f()
+        else:
+            self._callbacks.append(tornado.stack_context.wrap(f))
+            # ... and this request is not finished
+
 
 handlers = [
     (r"/host", HostHandler),
     (r"/host-info/(.+)", HostInfoHandler),
+    (r"/tail/(.+)", TailHandler),
     (r"/_cmd", CommandHandler),
+    (r"/(.+)", tornado.web.StaticFileHandler, {"path": "html"}),
     (r"/", MainHandler),
 ]
 
