@@ -9,6 +9,7 @@ import time
 
 import bitarray
 
+from sqliteset import Set
 
 class BloomFilterMD5():
     BITARRAY_LENGTH = 2 ** 32
@@ -70,15 +71,19 @@ class BloomFilterMD5():
 
 
 class RecordedText():
+    PERSIST_INTERVAL = 0.1
+
     def __init__(self, fn):
         path = pathlib.Path(fn)
         self.file = path.open()
+        self.tail = path.open("a")
         self.position_mark = mark = path.parent / ".pos.{}".format(path.name)
         self.position = 0
         if mark.exists():
             with mark.open() as f:
-                self.position = self.file.seek(int(f.read()))
-        threading.Thread(target=self._periodic_persist).start()
+                self.position = self.file.seek(int(f.read() or "0"))
+        self._th = threading.Thread(target=self._periodic_persist)
+        self._th.start()
 
     def __iter__(self):
         while True:
@@ -89,16 +94,17 @@ class RecordedText():
 
     def _periodic_persist(self):
         prev = self.position
-        while True:
-            if self.position is None:  # see method close
-                break
+        while threading.main_thread().is_alive() and self.position is not None:
             if self.position == prev:
                 time.sleep(0.01)
                 continue
-            with self.position_mark.open("w") as f:
-                f.write(str(self.position))
+            self._persist()
             prev = self.position
-            time.sleep(0.1)
+            time.sleep(self.PERSIST_INTERVAL)
+
+    def _persist(self):
+        with self.position_mark.open("w") as f:
+            f.write(str(self.position))
 
     def read(self):
         """
@@ -110,62 +116,69 @@ class RecordedText():
             self.position = self.file.tell()
             return line.rstrip()
 
+    def write(self, line):
+        if not line.endswith("\n"):
+            line += "\n"
+        self.tail.write(line)
+        self.tail.flush()
+
     def renew(self, position=0):
+        self.position = position
         self.file.seek(position)
-        with self.position_mark.open("w") as f:
-            f.write(str(position))
 
     def close(self):
         self.file.close()
+        self.tail.close()
+        self._persist()
         self.position = None
-        time.sleep(0.2)
+        self._th.join()
 
 
 class Tasks():
     def __init__(self, name):
         self.text = RecordedText(name)
-        self.tail = open(name, "a")
-        self.filter = BloomFilterMD5(name + ".bf")
+        self.set = Set(0x100, name + ".set")
         self.name = name
-        self._count_of_new_tasks = 0
 
     def get(self):
         task = self.text.read()
         return task
 
-    def add(self, task):
-        if not self.filter.exists(task):
-            print(task, file=self.tail, flush=True)
-            self.filter.set(task)
-            self._count_of_new_tasks += 1
-            if self._count_of_new_tasks > 100 * 1000:
-                self.filter.save()
-                self._count_of_new_tasks = 0
-            return +1  # :)
+    def add(self, *tasks):
+        tasks = set(t for t in tasks if t not in self.set)
+        self.set.add(*tasks)
+        for t in tasks:
+            self.text.write(t)
+        return tasks
 
-    def rebuild_filter(self):
-        """
-        when you were confused, do it
-        """
-        self.filter.clear()
-        threading.Thread(target=self._rebuild_filter).start()
-
-    def _rebuild_filter(self):
-        with open(self.name) as f:
-            for line in f:
-                self.filter.set(line.rstrip())
-        self.filter.save()
-
-    def finish(self):
+    def close(self):
+        self.set.close()
         self.text.close()
-        self.tail.close()
-        self.filter.close()
 
 
 def test():
     t = Tasks("hosts")
-    t.rebuild_filter()
-    #t.finish()
+    #t.set.clear()
+
+    print(len(t.set))
+    #l = []
+    while True:
+        try:
+            x = input()
+        except EOFError:
+            break
+        assert x in t.set
+        #t.add(x)
+        #l.append(x)
+
+    #t.add(*l)
+    print(len(t.set))
+
+    #for _ in range(10):
+    #    print(t.get())
+
+    #t.text.renew()
+    t.close()
 
 
 if __name__ == "__main__":

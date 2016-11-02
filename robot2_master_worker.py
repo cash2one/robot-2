@@ -31,7 +31,7 @@ class SessionWithLock(requests.Session):
 
 
 class Cli(master_worker.MasterWorker):
-    NUM_OF_WORKERS = 2
+    NUM_OF_WORKERS = 20
     RLIMIT_CPU = 240 - 3
     RLIMIT_AS = 500 * 1024 * 1024
 
