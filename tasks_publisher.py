@@ -149,7 +149,7 @@ class Tasks():
         self.set.add(*tasks)
         for t in tasks:
             self.text.write(t)
-        return tasks
+        return len(tasks)
 
     def close(self):
         self.set.close()

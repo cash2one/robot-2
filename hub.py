@@ -81,7 +81,6 @@ class HostHandler(BaseHandler):
 
 
 class HostInfoHandler(BaseHandler):
-    suffixes_counter = collections.Counter()
     ignored_hosts_set = sqliteset.Set(0x100, "hosts/ignored.set")
     with open("hosts/ignored_suffixes") as f:
         ignored_suffixes = set(i for i in f.read().split() if i)
@@ -95,6 +94,8 @@ class HostInfoHandler(BaseHandler):
             raise tornado.web.HTTPError(404)
 
     def post(self, name):
+        ts = time.strftime("%Y%m%d-%H%M")
+        self.redis_cli.hincrby("cnt_done", ts)
         content = self.request.body
         info = json.loads(content.decode())
         other_hosts_found = info.get("other_hosts_found")
@@ -108,22 +109,25 @@ class HostInfoHandler(BaseHandler):
                     suffixes[suffix] += 1
                 else:
                     ignored.append(i)
-            self.tasks.add(*valued)
-            self.ignored_hosts_set.add(*ignored)
-            warnings = self.suffixes_counter
+            n_found = self.tasks.add(*valued)
+            n_found += self.ignored_hosts_set.add(*ignored)
+            if n_found:
+                self.redis_cli.hincrby("cnt_found", ts, n_found)
             for k, v in suffixes.items():
                 if v > 2:
-                    warnings[k] += v
-                    if warnings[k] > 99:
+                    n = self.redis_cli.hincrby("suffixes_warned", k, v)
+                    if n > 99:
                         self.ignored_suffixes.add(k)
                         with open("hosts/ignored_suffixes", "a") as f:
                             print(k, file=f)
-                        warnings.pop(k)
+                        self.redis_cli.hdel("suffixes_warned", k)
 
         redirect = info.get("redirect")
         if redirect:
             self.tasks.add(redirect)
+
         self.db.Put(name.encode(), content)
+
         command = self.commands.pop(self.get_query_argument("id", None), None)
         if command:
             self.write(command)
