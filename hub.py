@@ -143,12 +143,11 @@ handlers = [
 def main():
     gc.disable()
     _, n = resource.getrlimit(resource.RLIMIT_NOFILE)
+    if n < 2000:
+        raise Warning("RLIMIT_NOFILE", n)
     resource.setrlimit(resource.RLIMIT_NOFILE, (n, n))
 
     tornado.options.parse_command_line()
-
-    _, n = resource.getrlimit(resource.RLIMIT_NOFILE)
-    resource.setrlimit(resource.RLIMIT_NOFILE, (n, n))
 
     p = int(os.environ.get("PORT", 1033))
     tornado.web.Application(
