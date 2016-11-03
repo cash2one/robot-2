@@ -51,6 +51,7 @@ class CommandHandler(BaseHandler):
         cmd = self.request.body.decode()
         if cmd == "renew":
             self.tasks.text.renew()
+            self.redis_cli.delete("suffixes_warned")
         else:
             raise tornado.web.HTTPError(404)
 
