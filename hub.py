@@ -104,6 +104,7 @@ class HostInfoHandler(BaseHandler):
 
         other_hosts_found = info.get("other_hosts_found")
         if other_hosts_found:
+            #self._(other_hosts_found)
             valued, ignored = [], []
             suffixes = collections.Counter()
             for i in other_hosts_found:
@@ -111,16 +112,20 @@ class HostInfoHandler(BaseHandler):
                 if suffix not in self.ignored_suffixes:
                     valued.append(i)
                     suffixes[suffix] += 1
+                    if suffixes[suffix] > 99:  # this batch of other_hosts_found
+                        self.ignored_suffixes.add(suffix)
                 else:
                     ignored.append(i)
+
             n_found = self.tasks.add(*valued)
             n_found += self.ignored_hosts_set.add(*ignored)
             if n_found:
                 self.redis_cli.hincrby("cnt_found", ts, n_found)
+
             for k, v in suffixes.items():
                 if v > 2:
                     n = self.redis_cli.hincrby("suffixes_warned", k, v)
-                    if n > 99:
+                    if n > 99:  # accumulated
                         self.ignored_suffixes.add(k)
                         with open("hosts/ignored_suffixes", "a") as f:
                             print(k, file=f)
@@ -195,7 +200,7 @@ handlers = [
 
 
 def main():
-    gc.disable()
+    #gc.disable()
     _, n = resource.getrlimit(resource.RLIMIT_NOFILE)
     if n < 2000:
         raise Warning("RLIMIT_NOFILE", n)
