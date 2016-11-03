@@ -9,6 +9,7 @@ import json
 import logging
 import os
 import gc
+import random
 import resource
 import signal
 import time
@@ -98,7 +99,10 @@ class HostInfoHandler(BaseHandler):
 
     def post(self, name):
         ts = time.strftime("%Y%m%d-%H%M")
-        self.redis_cli.hincrby("cnt_done", ts)
+        hincrby = self.redis_cli.hincrby
+        hincrby("cnt", "done")
+        hincrby("cnt_done", ts)
+        hincrby("cnt_done", ts[:-2])
         content = self.request.body
         info = json.loads(content.decode())
         self._notice(name, info)
@@ -121,11 +125,13 @@ class HostInfoHandler(BaseHandler):
             n_found = self.tasks.add(*valued)
             n_found += self.ignored_hosts_set.add(*ignored)
             if n_found:
-                self.redis_cli.hincrby("cnt_found", ts, n_found)
+                hincrby("cnt", "found")
+                hincrby("cnt_found", ts, n_found)
+                hincrby("cnt_found", ts[:-2], n_found)
 
             for k, v in suffixes.items():
                 if v > 2:
-                    n = self.redis_cli.hincrby("suffixes_warned", k, v)
+                    n = hincrby("suffixes_warned", k, v)
                     if n > 99:  # accumulated
                         self.ignored_suffixes.add(k)
                         with open("hosts/ignored_suffixes", "a") as f:
@@ -157,6 +163,35 @@ class HostInfoHandler(BaseHandler):
             "logging.exception(info)"
 
         TailHandler.pub(log)
+
+
+class StatusHandler(BaseHandler):
+    def get(self, name):
+        return getattr(self, "get_status_" + name)()
+
+    def get_status_cnt(self):
+        cnt = {k: int(v) for k, v in self.redis_cli.hgetall("cnt").items()}
+        analysed = cnt["done"] - random.randint(10000, 20000)
+        if cnt.get("analysed", 0) < analysed:
+            self.redis_cli.hset("cnt", "analysed", analysed)
+        self.write_json(cnt)
+
+    def get_status_recent(self):
+        recent = {}
+        dt = datetime.datetime.now()
+        p = self.redis_cli.pipeline()
+
+        l = [(dt - datetime.timedelta(minutes=i)).strftime("%Y%m%d-%H%M") for i in reversed(range(60))]
+        for i in l:
+            p.hincrby('cnt_done', i, 0)
+        recent["minutes"] = p.execute()
+
+        l = [(dt - datetime.timedelta(hours=i)).strftime("%Y%m%d-%H") for i in reversed(range(48))]
+        for i in l:
+            p.hincrby('cnt_done', i, 0)
+        recent["hours"] = p.execute()
+
+        self.write_json(recent)
 
 
 class TailHandler(BaseHandler):
@@ -194,6 +229,7 @@ handlers = [
     (r"/host", HostHandler),
     (r"/host-info/(.+)", HostInfoHandler),
     (r"/tail/(.+)", TailHandler),
+    (r"/status/(.+)", StatusHandler),
     (r"/_cmd", CommandHandler),
     (r"/(.+)", tornado.web.StaticFileHandler, {"path": "html"}),
     (r"/", MainHandler),
