@@ -74,11 +74,11 @@ master_worker = Cli.instance()
 
 def mailer():
     ss = requests.Session()
-    attrs = """
+    attrs = set("""
         loop_flag
         RLIMIT_CPU RLIMIT_AS
         proxy NUM_OF_WORKERS
-    """.split()
+    """.split())
     id = "{}_{:012x}_{}".format(
         socket.gethostname(),
         uuid.getnode(),
@@ -99,7 +99,10 @@ def mailer():
             if resp.content:
                 print(resp.json())
                 for k, v in resp.json().items():
-                    if k in attrs:
+                    if k == "kill":
+                        if v in master_worker:
+                            os.kill(v, signal.SIGTERM)
+                    elif k in attrs:
                         setattr(master_worker, k, v)
 
         except Exception as e:
