@@ -32,7 +32,6 @@ class BaseHandler(tornado.web.RequestHandler):
     db = leveldb.LevelDB("hosts.ldb")
     redis_cli = redis.StrictRedis(unix_socket_path="redis/sock",
                                   decode_responses=True)
-    commands = {}
 
     def set_default_headers(self):
         self.set_header("Content-Type", "text/plain; charset=UTF-8")
@@ -63,17 +62,6 @@ class HostHandler(BaseHandler):
 
     def get(self):
         resp = {}
-        data = self.request.body.decode()
-        if data:
-            info = json.loads(data)
-            worker_id = info["id"]
-            worker = self.workers[worker_id]
-            worker["active"] = datetime.datetime.now()
-            worker.update(info)
-            command = self.commands.pop(worker_id, None)
-            if command:
-                resp["command"] = command
-
         host = self.tasks.get()
         if host is None:
             raise tornado.web.HTTPError(404)
@@ -144,10 +132,6 @@ class HostInfoHandler(BaseHandler):
             self.tasks.add(redirect)
 
         self.db.Put(name.encode(), content)
-
-        command = self.commands.pop(self.get_query_argument("id", None), None)
-        if command:
-            self.write(command)
 
     def delete(self, name):
         self.db.Delete(name.encode())
