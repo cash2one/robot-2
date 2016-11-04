@@ -18,6 +18,7 @@ import leveldb
 import redis
 import tornado.ioloop
 import tornado.options
+import tornado.gen
 import tornado.web
 
 import tasks_publisher
@@ -165,6 +166,61 @@ class HostInfoHandler(BaseHandler):
         TailHandler.pub(log)
 
 
+class MailHandler(BaseHandler):
+    workers = {}
+    commands = {}
+    callbacks = {}
+
+    @classmethod
+    def launch_command(cls, id, cmd):
+        cls.commands.setdefault(id, {}).update(cmd)
+        f = cls.callbacks.pop(id, None)
+        if f:
+            f()
+
+    @tornado.web.asynchronous
+    def get(self, id):
+        def f():
+            self.write_json(self.commands.pop(id))
+        if id in self.commands:
+            f()
+        else:
+            self.callbacks[id] = tornado.stack_context.wrap(f)
+
+    def post(self, id):
+        info = json.loads(self.request.body.decode())
+        info["active"] = datetime.datetime.now()
+        self.workers[id] = info
+
+
+class WorkerHandler(MailHandler):
+    @tornado.gen.coroutine
+    def get(self, id=None):
+        yield from self._update_workers([id] if id else list(self.workers))
+        info = self.workers
+        if id:
+            info = info[id]
+        self.write_json(info)
+
+    def _update_workers(self, lst):
+        ts = datetime.datetime.now()
+        delta = datetime.timedelta(seconds=10)
+        for id in lst:
+            self.launch_command(id, {})
+        while True:
+            yield tornado.gen.sleep(0.1)
+            if all(self.workers[id]["active"] > ts for id in lst):
+                break
+            now = datetime.datetime.now()
+            dead = [id for id in lst if now - self.workers[id]["active"] > delta]
+            for id in dead:
+                lst.remove(id)
+                self.workers.pop(id)
+
+    def post(self, id):
+        self.launch_command(id, json.loads(self.request.body.decode()))
+
+
 class StatusHandler(BaseHandler):
     def get(self, name):
         return getattr(self, "get_status_" + name)()
@@ -230,6 +286,9 @@ handlers = [
     (r"/host-info/(.+)", HostInfoHandler),
     (r"/tail/(.+)", TailHandler),
     (r"/status/(.+)", StatusHandler),
+    (r"/mail/(.+)", MailHandler),
+    (r"/workers", WorkerHandler),
+    (r"/worker/(.+)", WorkerHandler),
     (r"/_cmd", CommandHandler),
     (r"/(.+)", tornado.web.StaticFileHandler, {"path": "html"}),
     (r"/", MainHandler),
