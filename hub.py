@@ -102,12 +102,20 @@ class HostInfoHandler(BaseHandler):
             valued, ignored = [], []
             suffixes = collections.Counter()
             for i in other_hosts_found:
-                suffix = public_suffix.get_independent_domain(i)
+                _ = public_suffix.split(i)
+                if not _:
+                    continue
+                suffix, *levels = _
                 if suffix not in self.ignored_suffixes:
-                    valued.append(i)
                     suffixes[suffix] += 1
                     if suffixes[suffix] > 99:  # this batch of other_hosts_found
                         self.ignored_suffixes.add(suffix)
+                    if len(levels) > 2:  # ignore ...3.2.1.com
+                        ignored.append(i)
+                    elif len(levels) == 2 and len(levels[1]) >= 5:  # ignore 1fkfw.xxx.net
+                        ignored.append(i)
+                    else:
+                        valued.append(i)
                 else:
                     ignored.append(i)
 

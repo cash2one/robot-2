@@ -6,6 +6,7 @@ import itertools
 import pathlib
 import threading
 import time
+import sys
 
 import bitarray
 
@@ -181,5 +182,19 @@ def test():
     t.close()
 
 
+def init():
+    t = Tasks("hosts/queue")
+    print(len(t.set))
+    t.text.renew()
+    t.set.add(*t.text)
+    print(len(t.set))
+    t.text.renew()
+    t.close()
+
+
 if __name__ == "__main__":
-    test()
+    if len(sys.argv) > 1:
+        if sys.argv[1] == "init":
+            init()
+    else:
+        test()
