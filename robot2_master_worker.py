@@ -97,7 +97,7 @@ def mailer():
             assert resp.status_code == 200
 
             if resp.content:
-                print(resp.json())
+                print(resp.json(), flush=True)
                 for k, v in resp.json().items():
                     if k == "kill":
                         if v in master_worker:
@@ -106,7 +106,7 @@ def mailer():
                         setattr(master_worker, k, v)
 
         except Exception as e:
-            print(e)
+            print(e, flush=True)
             time.sleep(1)
 
         if not master_worker.loop_flag:

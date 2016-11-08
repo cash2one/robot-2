@@ -329,7 +329,7 @@ def run(**config):
 
     info = {
         "schema": schema,
-        "other_hosts_found": list(other_hosts_found),
+        "other_hosts_found": list(other_hosts_found)[:200],
         "images": list(images)[:300],
         "pages": pages,
     }
