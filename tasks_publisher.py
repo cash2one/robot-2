@@ -158,14 +158,14 @@ class Tasks():
 
 
 def test():
-    t = Tasks("hosts")
+    t = Tasks("hosts/queue")
     #t.set.clear()
 
     print(len(t.set))
-    #l = []
+    l = []
     while True:
         try:
-            x = input()
+            x = input("> ")
         except EOFError:
             break
         assert x in t.set
@@ -173,6 +173,18 @@ def test():
         #l.append(x)
 
     #t.add(*l)
+
+    ### complete www.
+    #l = []
+    #for i in open("hosts/queue"):
+    #    if not i.startswith("www."):
+    #        i = "www." + i.strip()
+    #        l.append(i)
+
+    #print("add...")
+    #t.add(*l)
+    ###
+
     print(len(t.set))
 
     #for _ in range(10):
