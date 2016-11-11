@@ -46,7 +46,7 @@ TOO_LONG = 1 * 1024 * 1024
 
 is_valid_host = re.compile(
     r"([-a-z0-9]{1,64}\.)+"
-    r"[a-z]{2,8}"
+    r"[a-z]{2,16}"
     r"(:[0-9]{2,5})?"
 ).fullmatch
 

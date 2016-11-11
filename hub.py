@@ -27,6 +27,13 @@ import sqliteset
 import cz88_ip
 
 
+is_valid_host = re.compile(
+    r"([-a-z0-9]{1,64}\.)+"
+    r"[a-z]{2,16}"
+    r"(:[0-9]{2,5})?"
+).fullmatch
+
+
 class BaseHandler(tornado.web.RequestHandler):
     tasks = tasks_publisher.Tasks("hosts/queue")
     db = leveldb.LevelDB("hosts.ldb")
@@ -136,7 +143,7 @@ class HostInfoHandler(BaseHandler):
                         self.redis_cli.hdel("suffixes_warned", k)
 
         redirect = info.get("redirect")
-        if redirect:
+        if redirect and is_valid_host(redirect):
             self.tasks.add(redirect)
 
         self.db.Put(name.encode(), content)
