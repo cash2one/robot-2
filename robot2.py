@@ -375,7 +375,7 @@ def do_it(host_name=None):
         resp = session_to_hub.get("http://{}/host".format(HUB_HOST))
         if resp.status_code != 200:
             return "break"
-        host_name = resp.text
+        host_name = resp.json()["host"]
 
     print(host_name, flush=True)
     info = run(host=host_name, n_pages=10)
