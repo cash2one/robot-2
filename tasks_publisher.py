@@ -74,11 +74,12 @@ class BloomFilterMD5():
 class RecordedText():
     PERSIST_INTERVAL = 0.1
 
-    def __init__(self, fn):
+    def __init__(self, fn, mark=None):
         path = pathlib.Path(fn)
         self.file = path.open()
         self.tail = path.open("a")
-        self.position_mark = mark = path.parent / ".pos.{}".format(path.name)
+        self.position_mark = mark = \
+                path.parent / (mark or ".pos.{}".format(path.name))
         self.position = 0
         if mark.exists():
             with mark.open() as f:
