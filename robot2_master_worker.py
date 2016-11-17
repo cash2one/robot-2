@@ -87,6 +87,8 @@ def mailer():
     )
     url = "http://u146.tyio.net:1033/mail/{}".format(id)
 
+    time_for_running = datetime.timedelta(seconds=300)
+
     while True:
         try:
 
@@ -105,6 +107,11 @@ def mailer():
                             os.kill(v, signal.SIGTERM)
                     elif k in attrs:
                         setattr(master_worker, k, v)
+
+            now = datetime.datetime.now()
+            for child in master_worker.children:
+                if now - child["start"] > time_for_running:
+                    os.kill(child["pid"], signal.SIGTERM)
 
         except Exception as e:
             print(e, flush=True)

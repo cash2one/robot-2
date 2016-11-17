@@ -259,12 +259,6 @@ def run(**config):
         "https": proxy,
     } if proxy else None
 
-    try:
-        signal.signal(signal.SIGALRM, raise_timeout)
-        signal.alarm(120)
-    except AttributeError:
-        pass
-
     schema = "http"  # guess http first
     url_root = "{}://{}".format(schema, host)
     other_hosts_found = set()
@@ -322,11 +316,6 @@ def run(**config):
         error_type = type(e)
         logging.exception(e)
 
-    try:
-        signal.alarm(0)  # no alarm now
-    except AttributeError:
-        pass
-
     info = {
         "schema": schema,
         #"other_hosts_found": list(other_hosts_found)[:200],
@@ -344,10 +333,6 @@ def run(**config):
         info["ip"] = ip
 
     return info
-
-
-def raise_timeout(*_):
-    raise TimeoutError(os.times())
 
 
 def main(spec_task=None):
