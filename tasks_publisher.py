@@ -100,7 +100,10 @@ class RecordedText():
             if self.position == prev:
                 time.sleep(0.01)
                 continue
-            self._persist()
+            try:
+                self._persist()
+            except Exception:
+                pass
             prev = self.position
             time.sleep(self.PERSIST_INTERVAL)
 

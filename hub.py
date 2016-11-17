@@ -10,6 +10,7 @@ import logging
 import os
 import gc
 import random
+import re
 import resource
 import signal
 import time

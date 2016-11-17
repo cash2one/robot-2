@@ -58,8 +58,9 @@ class Cli(master_worker.MasterWorker):
                 time.sleep(0.1)
 
     def work(self, host):
-        out = robot2.run(host=host, n_pages=10, proxy=self.proxy)
-        data = json.dumps(out, separators=(",", ":"), ensure_ascii=False).encode()
+        info = robot2.run(host=host, n_pages=10, proxy=self.proxy)
+        data = json.dumps(info, default=str, ensure_ascii=False, indent=4,
+                          sort_keys=True, separators=(",", ": ")).encode()
         return data
 
     def process_result(self, host, data):
