@@ -21,6 +21,9 @@ import master_worker
 import random
 
 
+HUB_HOST = os.getenv("HUB_HOST", "localhost:1033")
+
+
 class SessionWithLock(requests.Session):
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)
@@ -41,7 +44,7 @@ class Cli(master_worker.MasterWorker):
         self.proxy = None
 
     def get_command(self):
-        url_task_ask = "http://u146.tyio.net:1033/host"
+        url_task_ask = "http://{}/host".format(HUB_HOST)
 
         while True:
             try:
@@ -64,7 +67,7 @@ class Cli(master_worker.MasterWorker):
         return data
 
     def process_result(self, host, data):
-        url = "http://u146.tyio.net:1033/host-info/{}".format(host)
+        url = "http://{}/host-info/{}".format(HUB_HOST, host)
         self.session.post(url, data=data)
 
     def cmd__reload(self):
@@ -85,7 +88,7 @@ def mailer():
         uuid.getnode(),
         os.getpid(),
     )
-    url = "http://u146.tyio.net:1033/mail/{}".format(id)
+    url = "http://{}/mail/{}".format(HUB_HOST, id)
 
     time_for_running = datetime.timedelta(seconds=300)
 

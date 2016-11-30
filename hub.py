@@ -38,7 +38,7 @@ is_valid_host = re.compile(
 class BaseHandler(tornado.web.RequestHandler):
     tasks = tasks_publisher.Tasks("hosts/queue")
     db = leveldb.LevelDB("hosts.ldb")
-    redis_cli = redis.StrictRedis(unix_socket_path="redis/sock",
+    redis_cli = redis.StrictRedis(unix_socket_path="etc/.redis.sock",
                                   decode_responses=True)
 
     def set_default_headers(self):
@@ -79,6 +79,15 @@ class HostHandler(BaseHandler):
     def post(self):
         host = self.request.body.decode()
         self.tasks.add(host)
+
+
+from simple_scan import page1 as _page1, domain_pattern as _domain_pattern
+def _simple_check(host_name, info):
+    if _domain_pattern.search(host_name):
+        return True
+    if sum(_page1(info)):
+        return True
+    return False
 
 
 class HostInfoHandler(BaseHandler):
@@ -155,8 +164,11 @@ class HostInfoHandler(BaseHandler):
     def _notice(self, name, info):
         log = {
             "host": name,
-            "bad": False,
+            "bad": _simple_check(name, info),
         }
+
+        if log["bad"]:
+            self.redis_cli.hincrby("cnt", "bad", 1)
 
         try:
             log["location"] = cz88_ip.find(info["ip"])
