@@ -23,7 +23,7 @@ import tornado.gen
 import tornado.web
 
 import tasks_publisher
-import public_suffix
+import domain_utils
 import sqliteset
 import cz88_ip
 
@@ -36,10 +36,23 @@ is_valid_host = re.compile(
 
 
 class BaseHandler(tornado.web.RequestHandler):
-    tasks = tasks_publisher.Tasks("hosts/queue")
     db = leveldb.LevelDB("hosts.ldb")
     redis_cli = redis.StrictRedis(unix_socket_path="etc/.redis.sock",
                                   decode_responses=True)
+    lua_scripts = {
+        "add_hosts": redis_cli.script_load("""
+            local n = 0
+            for _, host in pairs(KEYS) do
+                if redis.call("sadd", "hosts", host) == 1 then
+                    redis.call("rpush", "queue", host)
+                    n = n + 1
+                end
+            end
+            return n
+        """),
+    }
+
+    known_tail_names = set()
 
     def set_default_headers(self):
         self.set_header("Content-Type", "text/plain; charset=UTF-8")
@@ -59,7 +72,6 @@ class CommandHandler(BaseHandler):
     def post(self):
         cmd = self.request.body.decode()
         if cmd == "renew":
-            self.tasks.text.renew()
             self.redis_cli.delete("suffixes_warned")
         else:
             raise tornado.web.HTTPError(404)
@@ -70,15 +82,15 @@ class HostHandler(BaseHandler):
 
     def get(self):
         resp = {}
-        host = self.tasks.get()
+        host = self.redis_cli.lpop("queue")
         if host is None:
             raise tornado.web.HTTPError(404)
         resp["host"] = host
         self.write_json(resp)
 
     def post(self):
-        host = self.request.body.decode()
-        self.tasks.add(host)
+        host = self.request.body.decode().strip()
+        self.redis_cli.lpush("queue", host)
 
 
 from simple_scan import page1 as _page1, domain_pattern as _domain_pattern
@@ -91,12 +103,6 @@ def _simple_check(host_name, info):
 
 
 class HostInfoHandler(BaseHandler):
-    ignored_hosts_set = sqliteset.Set(0x100, "hosts/ignored.set")
-    with open("hosts/ignored_suffixes") as f:
-        ignored_suffixes = set(i for i in f.read().split() if i)
-        ignored_suffixes.add(None)  # ignore unknown host suffix
-    del f
-
     def get(self, name):
         try:
             self.write(bytes(self.db.Get(name.encode())))
@@ -115,46 +121,29 @@ class HostInfoHandler(BaseHandler):
 
         other_hosts_found = info.get("other_hosts_found")
         if other_hosts_found:
-            #self._(other_hosts_found)
-            valued, ignored = [], []
-            suffixes = collections.Counter()
+            warnings = []
             for i in other_hosts_found:
-                _ = public_suffix.split(i)
-                if not _:
+                tail = domain_utils.tail(i)
+                if not tail:
                     continue
-                suffix, *levels = _
-                if suffix not in self.ignored_suffixes:
-                    suffixes[suffix] += 1
-                    if suffixes[suffix] > 99:  # this batch of other_hosts_found
-                        self.ignored_suffixes.add(suffix)
-                    if len(levels) > 2:  # ignore ...3.2.1.com
-                        ignored.append(i)
-                    elif len(levels) == 2 and len(levels[1]) >= 5:  # ignore 1fkfw.xxx.net
-                        ignored.append(i)
-                    else:
-                        valued.append(i)
-                else:
-                    ignored.append(i)
+                if tail not in self.known_tail_names:
+                    warnings.append(i)
 
-            n_found = self.tasks.add(*valued)
-            n_found += self.ignored_hosts_set.add(*ignored)
-            if n_found:
-                hincrby("cnt", "found")
-                hincrby("cnt_found", ts, n_found)
-                hincrby("cnt_found", ts[:-2], n_found)
-
-            for k, v in suffixes.items():
-                if v > 2:
-                    n = hincrby("suffixes_warned", k, v)
-                    if n > 99:  # accumulated
-                        self.ignored_suffixes.add(k)
-                        with open("hosts/ignored_suffixes", "a") as f:
-                            print(k, file=f)
-                        self.redis_cli.hdel("suffixes_warned", k)
+            if len(warnings) / len(other_hosts_found) > 0.3:  # temporary 30%
+                with open("log/warning_hosts.txt", "a") as f:
+                    print(name, *warnings, file=f)
+            else:
+                n_found = self.redis_cli.evalsha(
+                    self.lua_scripts["add_hosts"], len(other_hosts_found), *other_hosts_found)
+                if n_found:
+                    hincrby("cnt", "found")
+                    hincrby("cnt_found", ts, n_found)
+                    hincrby("cnt_found", ts[:-2], n_found)
 
         redirect = info.get("redirect")
         if redirect and is_valid_host(redirect):
-            self.tasks.add(redirect)
+            if self.redis_cli.sadd("hosts", redirect):
+                self.redis_cli.lpush("queue", redirect)
 
         self.db.Put(name.encode(), content)
 
@@ -316,6 +305,9 @@ def main():
 
     tornado.options.parse_command_line()
 
+    with open("known_tail_names.txt") as f:
+        BaseHandler.known_tail_names.update(f.read().split())
+
     p = int(os.environ.get("PORT", 1033))
     tornado.web.Application(
         handlers,
@@ -330,7 +322,6 @@ def main():
     def _term(*_):
         #io_loop.close(True)
         io_loop.stop()
-        BaseHandler.tasks.close()
         logging.info("stop")
 
     signal.signal(signal.SIGTERM, _term)

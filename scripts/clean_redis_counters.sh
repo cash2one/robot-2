@@ -1,6 +1,6 @@
 #!/bin/sh
 
-redis-cli -s redis/sock eval '
+redis-cli -s etc/.redis.sock eval '
 
 local ts = KEYS[1]
 

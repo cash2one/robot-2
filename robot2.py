@@ -365,7 +365,7 @@ def do_it(host_name=None):
         host_name = resp.json()["host"]
 
     print(host_name, flush=True)
-    info = run(host=host_name, n_pages=10)
+    info = run(host=host_name, n_pages=25)
     data = json.dumps(info, default=str, ensure_ascii=False, indent=4,
                       sort_keys=True, separators=(",", ": ")).encode()
     session_to_hub.post(
