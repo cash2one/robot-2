@@ -121,15 +121,24 @@ class HostInfoHandler(BaseHandler):
 
         other_hosts_found = info.get("other_hosts_found")
         if other_hosts_found:
+            size_of_found = len(other_hosts_found)
+            tail_counter = collections.Counter()
             warnings = []
             for i in other_hosts_found:
                 tail = domain_utils.tail(i)
                 if not tail:
                     continue
+                tail_counter[tail] += 1
                 if tail not in self.known_tail_names:
                     warnings.append(i)
 
-            if len(warnings) / len(other_hosts_found) > 0.3:  # temporary 30%
+            warned_tail_flag = False
+            for k, v in tail_counter.most_common(2):
+                if v > 5 and v / size_of_found > 0.4:  # temporary 40%
+                    self.redis_cli.hincrby("warned_tail", k, v)
+                    warned_tail_flag = True
+
+            if warned_tail_flag or len(warnings) / size_of_found > 0.3:  # temporary 30%
                 with open("log/warning_hosts.txt", "a") as f:
                     print(name, *warnings, file=f)
             else:
