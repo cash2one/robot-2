@@ -92,6 +92,7 @@ def mailer():
 
     time_for_running = datetime.timedelta(seconds=300)
 
+    f_for_this_thread = open("log/mailer.log", "a")
     while True:
         try:
 
@@ -103,7 +104,7 @@ def mailer():
             assert resp.status_code == 200
 
             if resp.content:
-                print(resp.json(), flush=True)
+                print(resp.json(), file=f_for_this_thread, flush=True)
                 for k, v in resp.json().items():
                     if k == "kill":
                         if v in master_worker:
@@ -117,11 +118,12 @@ def mailer():
                     os.kill(child["pid"], signal.SIGTERM)
 
         except Exception as e:
-            print(e, flush=True)
+            print(e, file=f_for_this_thread, flush=True)
             time.sleep(1)
 
         if not master_worker.loop_flag:
             break
+    f_for_this_thread.close()
 
 
 def main():
