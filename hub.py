@@ -26,6 +26,7 @@ import tasks_publisher
 import domain_utils
 import sqliteset
 import cz88_ip
+import my_q
 
 
 is_valid_host = re.compile(
@@ -103,6 +104,8 @@ def _simple_check(host_name, info):
 
 
 class HostInfoHandler(BaseHandler):
+    my_redis_queues = my_q.MyQueues()
+
     def get(self, name):
         try:
             self.write(bytes(self.db.Get(name.encode())))
@@ -111,6 +114,8 @@ class HostInfoHandler(BaseHandler):
 
     def post(self, name):
         ts = time.strftime("%Y%m%d-%H%M")
+
+        blog_suffixes = self.redis_cli.smembers("blogs")
         hincrby = self.redis_cli.hincrby
         hincrby("cnt", "done")
         hincrby("cnt_done", ts)
@@ -124,10 +129,16 @@ class HostInfoHandler(BaseHandler):
             size_of_found = len(other_hosts_found)
             tail_counter = collections.Counter()
             warnings = []
+
+            other_hosts = []
             for i in other_hosts_found:
                 tail = domain_utils.tail(i)
                 if not tail:
                     continue
+                if tail in blog_suffixes:
+                    self.my_redis_queues["blog:" + tail].append(i[:-len(tail)])
+                    continue
+                other_hosts.append(i)
                 tail_counter[tail] += 1
                 if tail not in self.known_tail_names:
                     warnings.append(i)
@@ -143,7 +154,7 @@ class HostInfoHandler(BaseHandler):
                     print(name, *warnings, file=f)
             else:
                 n_found = self.redis_cli.evalsha(
-                    self.lua_scripts["add_hosts"], len(other_hosts_found), *other_hosts_found)
+                    self.lua_scripts["add_hosts"], len(other_hosts), *other_hosts)
                 if n_found:
                     hincrby("cnt", "found")
                     hincrby("cnt_found", ts, n_found)
