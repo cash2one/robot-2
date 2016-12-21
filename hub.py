@@ -116,6 +116,7 @@ class HostInfoHandler(BaseHandler):
         ts = time.strftime("%Y%m%d-%H%M")
 
         blog_suffixes = self.redis_cli.smembers("blogs")
+        ignored_suffixes = self.redis_cli.smembers("ignored")
         hincrby = self.redis_cli.hincrby
         hincrby("cnt", "done")
         hincrby("cnt_done", ts)
@@ -133,7 +134,7 @@ class HostInfoHandler(BaseHandler):
             other_hosts = []
             for i in other_hosts_found:
                 tail = domain_utils.tail(i)
-                if not tail:
+                if not tail or tail in ignored_suffixes:
                     continue
                 if tail in blog_suffixes:
                     self.my_redis_queues["blog:" + tail].append(i[:-len(tail)])
