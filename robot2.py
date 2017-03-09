@@ -321,7 +321,7 @@ def run(**config):
         #"other_hosts_found": list(other_hosts_found)[:200],
         #"images": list(images)[:300],
         "other_hosts_found": list(other_hosts_found),
-        "images": list(images),
+        "images": list(images)[:300],
         "pages": pages,
     }
 

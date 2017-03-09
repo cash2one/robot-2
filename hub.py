@@ -90,8 +90,9 @@ class HostHandler(BaseHandler):
         self.write_json(resp)
 
     def post(self):
-        host = self.request.body.decode().strip()
-        self.redis_cli.lpush("queue", host)
+        hosts = self.request.body.decode().split()
+        if hosts:
+            self.redis_cli.lpush("queue", *hosts)
 
 
 from simple_scan import page1 as _page1, domain_pattern as _domain_pattern
