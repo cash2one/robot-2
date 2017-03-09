@@ -80,6 +80,7 @@ def main(words):
     for word in words:
         hosts.update(search_baidu(word) | search_so(word) | search_sogou(word))
 
+    ss.post("http://gpu.lan.tyio.net:1033/host", "\n".join(hosts))
     for i in hosts:
         print(i)
     return
