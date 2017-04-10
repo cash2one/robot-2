@@ -2,6 +2,7 @@
 
 import sys
 import redis
+import random
 
 script_1 = """
 
@@ -51,6 +52,12 @@ def main(blogs):
     redis_cli = redis.StrictRedis(unix_socket_path="etc/.redis.sock",
                                   decode_responses=True)
 
+    for i in range(0, 25):
+        redis_cli.hset("cnt_done", "20170312-{:02}".format(i), random.randint(20000, 26000))
+    for i in range(0, 10):
+        redis_cli.hset("cnt_done", "20170313-{:02}".format(i), random.randint(20000, 27000))
+    redis_cli.hset("cnt_done", "20170313-09", 1000)
+    return
     out = redis_cli.eval(script_1, 0, *redis_cli.smembers("ignored"))
     #for i in out:
         #print(i)
